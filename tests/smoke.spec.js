@@ -393,7 +393,8 @@ test('orders support split payments, payment methods, history and exact receivab
   await page.locator('#f_initialPaymentMethod').selectOption({ label: '微信支付' });
   await page.getByRole('button', { name: '保存记录' }).click();
 
-  const row = page.locator('#orderRows tr').filter({ hasText: '林小姐' }).filter({ hasText: '1000' }).first();
+  const orderCode = await page.evaluate(() => JSON.parse(localStorage.getItem('shengyi_guanjia_v01')).orders.find(o => o.customerId === 'c3' && o.amount === 1000).code);
+  const row = page.locator('#orderRows tr').filter({ hasText: orderCode });
   await expect(row).toContainText('部分收款');
   await expect(row).toContainText('800');
 
