@@ -38,6 +38,8 @@ test('appointment rejects occupied time and accepts a free time', async ({ page 
 });
 
 test('order can be recorded and reflected in business analysis', async ({ page }) => {
+  await page.locator('[data-page="reports"]').filter({ visible: true }).first().click();
+  const before = Number((await page.locator('#reportRevenue').textContent()).replace(/[^0-9.]/g, ''));
   await page.locator('[data-page="orders"]').filter({ visible: true }).first().click();
   await page.getByRole('button', { name: /新建订单/ }).click();
   await page.locator('#f_amount').fill('356');
@@ -45,7 +47,8 @@ test('order can be recorded and reflected in business analysis', async ({ page }
   await page.getByRole('button', { name: '保存记录' }).click();
   await expect(page.locator('#orderRows')).toContainText('356');
   await page.locator('[data-page="reports"]').filter({ visible: true }).first().click();
-  await expect(page.locator('#reportRevenue')).toContainText('356');
+  const after = Number((await page.locator('#reportRevenue').textContent()).replace(/[^0-9.]/g, ''));
+  expect(after).toBeCloseTo(before + 356, 2);
 });
 
 test('expense can be recorded, searched and deleted', async ({ page }) => {
