@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
 
 test('dashboard renders and navigation reaches all core modules', async ({ page }) => {
   await expect(page.locator('#page-home')).toBeVisible();
-  for (const [key, label] of [['customers', '客户中心'], ['appointments', '预约管理'], ['services', '服务项目'], ['orders', '订单管理'], ['expenses', '支出管理'], ['reports', '经营分析']]) {
+  for (const [key, label] of [['customers', '客户中心'], ['appointments', '预约管理'], ['services', '服务项目'], ['staff', '员工管理'], ['orders', '订单管理'], ['expenses', '支出管理'], ['reports', '经营分析']]) {
     await page.locator('[data-page="' + key + '"]').filter({ visible: true }).first().click();
     await expect(page.locator('#pageTitle')).toHaveText(label);
   }
@@ -30,9 +30,11 @@ test('appointment rejects occupied time and accepts a free time', async ({ page 
   await page.getByRole('button', { name: /新建预约/ }).click();
   await page.locator('#f_time').fill('10:00');
   await page.locator('#f_service').selectOption('s1');
+  await page.locator('#f_staff').selectOption('st1');
   await page.getByRole('button', { name: '保存记录' }).click();
-  await expect(page.locator('#toast')).toContainText('该时间已有预约');
+  await expect(page.locator('#toast')).toContainText('该员工在此时段已有预约');
   await page.locator('#f_time').fill('11:00');
+  await page.locator('#f_staff').selectOption('st1');
   await page.getByRole('button', { name: '保存记录' }).click();
   await expect(page.locator('#appointmentRows')).toContainText('精油按摩');
 });
@@ -139,8 +141,60 @@ test('service catalog creates priced services and appointments use catalog prici
   await expect(page.locator('#serviceInfo')).toContainText('45 分钟');
   await page.locator('#f_date').fill(new Date().toISOString().slice(0, 10));
   await page.locator('#f_time').fill('16:00');
-  await page.locator('#f_staff').fill('自动化员工');
+  await page.locator('#f_staff').selectOption('st1');
   await page.getByRole('button', { name: '保存记录' }).click();
   await expect(page.locator('#appointmentRows')).toContainText('深层护理');
   await expect(page.locator('#appointmentRows')).toContainText('45 分钟');
+});
+
+test('staff can be added, edited and safely deactivated', async ({ page }) => {
+  await page.locator('[data-page="staff"]').filter({ visible: true }).first().click();
+  await page.getByRole('button', { name: /新增员工/ }).click();
+  await page.locator('#f_staffName').fill('自动化员工');
+  await page.locator('#f_staffRole').fill('高级技师');
+  await page.locator('#f_staffPhone').fill('13900000000');
+  await page.getByRole('button', { name: '保存记录' }).click();
+  const row = page.locator('#staffRows tr').filter({ hasText: '自动化员工' });
+  await expect(row).toContainText('高级技师');
+  await row.getByRole('button', { name: '编辑' }).click();
+  await page.locator('#f_staffRole').fill('店长');
+  await page.getByRole('button', { name: '保存记录' }).click();
+  await expect(page.locator('#staffRows')).toContainText('店长');
+  await page.locator('#staffRows tr').filter({ hasText: '自动化员工' }).getByRole('button', { name: '停用' }).click();
+  await expect(page.locator('#staffRows tr').filter({ hasText: '自动化员工' })).toContainText('已停用');
+});
+
+test('same employee cannot have overlapping appointments but another employee can', async ({ page }) => {
+  await page.locator('[data-page="appointments"]').filter({ visible: true }).first().click();
+  await page.getByRole('button', { name: /新建预约/ }).click();
+  await page.locator('#f_time').fill('10:30');
+  await page.locator('#f_service').selectOption('s1');
+  await page.locator('#f_staff').selectOption('st1');
+  await page.getByRole('button', { name: '保存记录' }).click();
+  await expect(page.locator('#toast')).toContainText('该员工在此时段已有预约');
+  await page.locator('#f_staff').selectOption('st2');
+  await page.getByRole('button', { name: '保存记录' }).click();
+  await expect(page.locator('#appointmentRows')).toContainText('小周');
+});
+
+test('older local data migrates historical staff names into the staff roster', async ({ page }) => {
+  await page.evaluate(() => {
+    const today = new Date();
+    const date = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, '0'), String(today.getDate()).padStart(2, '0')].join('-');
+    localStorage.setItem('shengyi_guanjia_v01', JSON.stringify({
+      currency: 'CNY',
+      storeName: '旧版门店',
+      customers: [{ id: 'old-c1', name: '旧版客户', phone: '', source: '导入', created: date, notes: '' }],
+      appointments: [{ id: 'old-a1', date, time: '09:00', customerId: 'old-c1', service: '旧版护理', staff: '历史员工甲', status: '已确认' }],
+      services: [],
+      orders: [],
+      expenses: []
+    }));
+  });
+  await page.reload();
+  await page.locator('[data-page="staff"]').filter({ visible: true }).first().click();
+  await expect(page.locator('#staffRows')).toContainText('历史员工甲');
+  await page.locator('[data-page="appointments"]').filter({ visible: true }).first().click();
+  await page.getByRole('button', { name: /新建预约/ }).click();
+  await expect(page.locator('#f_staff')).toContainText('历史员工甲');
 });
