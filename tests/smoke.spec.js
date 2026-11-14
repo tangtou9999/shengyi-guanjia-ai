@@ -86,9 +86,9 @@ test('backup can be restored after validation without losing its records', async
     buffer: Buffer.from(JSON.stringify(backup))
   });
   await expect(page.locator('#toast')).toContainText('备份恢复成功');
-  await page.locator('[data-page="customers"]').first().click();
+  await page.locator('[data-page="customers"]').filter({ visible: true }).first().click();
   await expect(page.locator('#customerRows')).toContainText('备份恢复客户');
-  await page.locator('[data-page="reports"]').first().click();
+  await page.locator('[data-page="reports"]').filter({ visible: true }).first().click();
   await expect(page.locator('#reportRevenue')).toContainText('520');
 });
 
@@ -100,7 +100,7 @@ test('invalid backup is rejected without replacing current data', async ({ page 
     buffer: Buffer.from(JSON.stringify({ app: 'shengyi-guanjia-ai', data: { customers: [] } }))
   });
   await expect(page.locator('#toast')).toContainText('备份缺少必要数据');
-  await page.locator('[data-page="customers"]').first().click();
+  await page.locator('[data-page="customers"]').filter({ visible: true }).first().click();
   await expect(page.locator('#customerRows')).toContainText('王女士');
 });
 
