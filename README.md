@@ -10,7 +10,7 @@
 
 ## 在线预览（GitHub Pages）
 
-仓库已包含 GitHub Actions 部署工作流：`.github/workflows/pages.yml`。
+GitHub Pages 已配置为 GitHub Actions 部署来源；由 GitHub 自动生成的 Pages 部署流程负责发布，项目另有独立的浏览器质量检查流程。
 
 首次启用需要仓库管理员在 GitHub 打开：
 
@@ -20,7 +20,7 @@
 
 `https://tangtou9999.github.io/shengyi-guanjia-ai/`
 
-部署状态可在仓库的 **Actions** 页面查看。
+部署状态可在仓库的 **Actions** 页面查看。不要额外添加第二套 Pages 部署工作流，以免与 GitHub 自动生成的部署流程争抢同一个 Pages artifact。
 
 ## 本地预览
 
