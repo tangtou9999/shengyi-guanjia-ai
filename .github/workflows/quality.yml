@@ -1,11 +1,13 @@
 name: Product quality checks
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: product-quality-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
