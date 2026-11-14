@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
 
 test('dashboard renders and navigation reaches all core modules', async ({ page }) => {
   await expect(page.locator('#page-home')).toBeVisible();
-  for (const [key, label] of [['customers', '客户中心'], ['appointments', '预约管理'], ['orders', '订单管理'], ['expenses', '支出管理'], ['reports', '经营分析']]) {
+  for (const [key, label] of [['customers', '客户中心'], ['appointments', '预约管理'], ['services', '服务项目'], ['orders', '订单管理'], ['expenses', '支出管理'], ['reports', '经营分析']]) {
     await page.locator('[data-page="' + key + '"]').filter({ visible: true }).first().click();
     await expect(page.locator('#pageTitle')).toHaveText(label);
   }
@@ -29,12 +29,12 @@ test('appointment rejects occupied time and accepts a free time', async ({ page 
   await page.locator('[data-page="appointments"]').filter({ visible: true }).first().click();
   await page.getByRole('button', { name: /新建预约/ }).click();
   await page.locator('#f_time').fill('10:00');
-  await page.locator('#f_service').fill('自动化测试服务');
+  await page.locator('#f_service').selectOption('s1');
   await page.getByRole('button', { name: '保存记录' }).click();
   await expect(page.locator('#toast')).toContainText('该时间已有预约');
   await page.locator('#f_time').fill('11:00');
   await page.getByRole('button', { name: '保存记录' }).click();
-  await expect(page.locator('#appointmentRows')).toContainText('自动化测试服务');
+  await expect(page.locator('#appointmentRows')).toContainText('精油按摩');
 });
 
 test('order can be recorded and reflected in business analysis', async ({ page }) => {
@@ -114,4 +114,33 @@ test('PWA manifest and offline service worker are registered', async ({ page }) 
   expect(manifest.name).toBe('生意管家 AI');
   await expect.poll(() => page.evaluate(() => 'serviceWorker' in navigator)).toBeTruthy();
   await page.evaluate(() => navigator.serviceWorker.ready);
+});
+
+test('service catalog creates priced services and appointments use catalog pricing', async ({ page }) => {
+  await page.locator('[data-page="services"]').filter({ visible: true }).first().click();
+  await page.getByRole('button', { name: /新增服务/ }).click();
+  await page.locator('#f_serviceName').fill('深层护理');
+  await page.locator('#f_servicePrice').fill('199');
+  await page.locator('#f_serviceDuration').fill('45');
+  await page.locator('#f_serviceDescription').fill('自动化测试服务项目');
+  await page.getByRole('button', { name: '保存记录' }).click();
+  await expect(page.locator('#serviceRows')).toContainText('深层护理');
+  await expect(page.locator('#serviceRows')).toContainText('199');
+  const serviceRow = page.locator('#serviceRows tr').filter({ hasText: '深层护理' });
+  await serviceRow.getByRole('button', { name: '编辑' }).click();
+  await page.locator('#f_servicePrice').fill('219');
+  await page.getByRole('button', { name: '保存记录' }).click();
+  await expect(page.locator('#serviceRows')).toContainText('219');
+  await page.locator('[data-page="appointments"]').filter({ visible: true }).first().click();
+  await page.getByRole('button', { name: /新建预约/ }).click();
+  const serviceId = await page.locator('#f_service option').filter({ hasText: '深层护理' }).getAttribute('value');
+  await page.locator('#f_service').selectOption(serviceId);
+  await expect(page.locator('#serviceInfo')).toContainText('219');
+  await expect(page.locator('#serviceInfo')).toContainText('45 分钟');
+  await page.locator('#f_date').fill(new Date().toISOString().slice(0, 10));
+  await page.locator('#f_time').fill('16:00');
+  await page.locator('#f_staff').fill('自动化员工');
+  await page.getByRole('button', { name: '保存记录' }).click();
+  await expect(page.locator('#appointmentRows')).toContainText('深层护理');
+  await expect(page.locator('#appointmentRows')).toContainText('45 分钟');
 });
