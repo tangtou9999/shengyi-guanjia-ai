@@ -383,3 +383,131 @@ test('backup rejects invalid follow-up dates without replacing current data', as
   await page.locator('[data-page="customers"]').filter({ visible: true }).first().click();
   await expect(page.locator('#customerRows')).toContainText('王女士');
 });
+
+test('orders support split payments, payment methods, history and exact receivable balances', async ({ page }) => {
+  await page.locator('[data-page="orders"]').filter({ visible: true }).first().click();
+  await page.getByRole('button', { name: /新建订单/ }).click();
+  await page.locator('#f_customer').selectOption('c3');
+  await page.locator('#f_amount').fill('1000');
+  await page.locator('#f_paid').fill('200');
+  await page.locator('#f_initialPaymentMethod').selectOption({ label: '微信支付' });
+  await page.getByRole('button', { name: '保存记录' }).click();
+
+  const orderCode = await page.evaluate(() => JSON.parse(localStorage.getItem('shengyi_guanjia_v01')).orders.find(o => o.customerId === 'c3' && o.amount === 1000).code);
+  const row = page.locator('#orderRows tr').filter({ hasText: orderCode });
+  await expect(row).toContainText('部分收款');
+  await expect(row).toContainText('800');
+
+  await row.getByRole('button', { name: '登记收款' }).click();
+  await page.locator('#f_paymentAmount').fill('801');
+  await page.locator('#f_paymentMethod').selectOption({ label: '支付宝' });
+  await page.locator('#f_paymentNote').fill('第二次收款');
+  await page.getByRole('button', { name: '保存记录' }).click();
+  await expect(page.locator('#toast')).toContainText('收款金额必须大于 0 且不能超过剩余应收');
+  await page.locator('#f_paymentAmount').fill('300');
+  await page.getByRole('button', { name: '保存记录' }).click();
+
+  await expect(row).toContainText('500');
+  await expect(row).toContainText('部分收款');
+  await row.getByRole('button', { name: '收款流水' }).click();
+  await expect(page.locator('#paymentHistoryBody')).toContainText('微信支付');
+  await expect(page.locator('#paymentHistoryBody')).toContainText('支付宝');
+  await expect(page.locator('#paymentHistoryBody')).toContainText('第二次收款');
+
+  await page.locator('#paymentHistoryAdd').click();
+  await expect(page.locator('#f_paymentAmount')).toHaveValue('500');
+  await page.locator('#f_paymentAmount').fill('500');
+  await page.locator('#f_paymentMethod').selectOption({ label: '现金' });
+  await page.getByRole('button', { name: '保存记录' }).click();
+  await expect(row).toContainText('已收齐');
+  await expect(row.getByRole('button', { name: '登记收款' })).toBeDisabled();
+
+  await row.getByRole('button', { name: '收款流水' }).click();
+  await expect(page.locator('#paymentHistoryBody')).toContainText('微信支付');
+  await expect(page.locator('#paymentHistoryBody')).toContainText('支付宝');
+  await expect(page.locator('#paymentHistoryBody')).toContainText('现金');
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('shengyi_guanjia_v01')).orders.find(o => o.customerId === 'c3' && o.amount === 1000));
+  expect(saved.payments).toHaveLength(3);
+  expect(saved.paid).toBe(1000);
+});
+
+test('legacy order paid amounts migrate into a historical payment ledger without changing balances', async ({ page }) => {
+  await page.evaluate(() => {
+    localStorage.setItem('shengyi_guanjia_v01', JSON.stringify({
+      schemaVersion: 4,
+      currency: 'CNY',
+      storeName: '旧订单门店',
+      customers: [{ id: 'legacy-pay-c1', name: '历史收款客户', phone: '', source: '其他', created: '2026-10-01', notes: '' }],
+      appointments: [],
+      staff: [],
+      services: [],
+      orders: [{ id: 'legacy-pay-o1', code: 'LEGACY-PAY-01', customerId: 'legacy-pay-c1', amount: 200, paid: 125, date: '2026-10-02', status: '待付款' }],
+      expenses: []
+    }));
+  });
+  await page.reload();
+  await page.locator('[data-page="orders"]').filter({ visible: true }).first().click();
+  const row = page.locator('#orderRows tr').filter({ hasText: 'LEGACY-PAY-01' });
+  await expect(row).toContainText('125');
+  await expect(row).toContainText('75');
+  await expect(row).toContainText('部分收款');
+  await row.getByRole('button', { name: '收款流水' }).click();
+  await expect(page.locator('#paymentHistoryBody')).toContainText('历史实收');
+  await expect(page.locator('#paymentHistoryBody')).toContainText('125');
+  const migrated = await page.evaluate(() => JSON.parse(localStorage.getItem('shengyi_guanjia_v01')).orders[0]);
+  expect(migrated.payments).toHaveLength(1);
+  expect(migrated.payments[0].amount).toBe(125);
+  expect(migrated.paid).toBe(125);
+});
+
+test('backup rejects collection ledgers whose total differs from the order paid amount', async ({ page }) => {
+  await page.locator('.userpill').click();
+  const invalid = {
+    app: 'shengyi-guanjia-ai',
+    data: {
+      customers: [{ id: 'pay-check-c1', name: '收款校验客户' }],
+      appointments: [],
+      orders: [{
+        id: 'pay-check-o1', code: 'PAY-CHECK-01', customerId: 'pay-check-c1',
+        amount: 100, paid: 50, date: '2026-11-15', status: '已完成',
+        payments: [{ id: 'pay-check-p1', amount: 40, date: '2026-11-15', method: '现金', note: '' }]
+      }],
+      expenses: []
+    }
+  };
+  await page.locator('#backupFile').setInputFiles({
+    name: 'invalid-payment-ledger.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(invalid))
+  });
+  await expect(page.locator('#toast')).toContainText('收款流水合计与订单实收金额不一致');
+  await page.locator('[data-page="customers"]').filter({ visible: true }).first().click();
+  await expect(page.locator('#customerRows')).toContainText('王女士');
+});
+
+test('today collected revenue follows receipt date rather than original order date', async ({ page }) => {
+  const dates = await page.evaluate(() => {
+    const fmt = d => [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+    const today = new Date();
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    return { today: fmt(today), yesterday: fmt(yesterday) };
+  });
+  await page.locator('[data-page="home"]').filter({ visible: true }).first().click();
+  const before = Number((await page.locator('#kpiPaid').textContent()).replace(/[^0-9.]/g, ''));
+  await page.locator('[data-page="orders"]').filter({ visible: true }).first().click();
+  await page.getByRole('button', { name: /新建订单/ }).click();
+  await page.locator('#f_customer').selectOption('c3');
+  await page.locator('#f_amount').fill('500');
+  await page.locator('#f_paid').fill('0');
+  await page.locator('#f_date').fill(dates.yesterday);
+  await page.getByRole('button', { name: '保存记录' }).click();
+  const code = await page.evaluate(() => JSON.parse(localStorage.getItem('shengyi_guanjia_v01')).orders.find(o => o.customerId === 'c3' && o.amount === 500).code);
+  await page.locator('#orderRows tr').filter({ hasText: code }).getByRole('button', { name: '登记收款' }).click();
+  await page.locator('#f_paymentAmount').fill('100');
+  await page.locator('#f_paymentDate').fill(dates.today);
+  await page.locator('#f_paymentMethod').selectOption({ label: '现金' });
+  await page.getByRole('button', { name: '保存记录' }).click();
+  await page.locator('[data-page="home"]').filter({ visible: true }).first().click();
+  const after = Number((await page.locator('#kpiPaid').textContent()).replace(/[^0-9.]/g, ''));
+  expect(after).toBeCloseTo(before + 100, 2);
+});
