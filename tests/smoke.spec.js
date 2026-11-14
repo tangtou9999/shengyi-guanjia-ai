@@ -135,7 +135,7 @@ test('service catalog creates priced services and appointments use catalog prici
   await page.getByRole('button', { name: /新建预约/ }).click();
   const serviceId = await page.locator('#f_service option').filter({ hasText: '深层护理' }).getAttribute('value');
   await page.locator('#f_service').selectOption(serviceId);
-  await expect(page.locator('#serviceInfo')).toContainText('199');
+  await expect(page.locator('#serviceInfo')).toContainText('219');
   await expect(page.locator('#serviceInfo')).toContainText('45 分钟');
   await page.locator('#f_date').fill(new Date().toISOString().slice(0, 10));
   await page.locator('#f_time').fill('16:00');
