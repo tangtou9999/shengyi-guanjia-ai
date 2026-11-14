@@ -198,3 +198,30 @@ test('older local data migrates historical staff names into the staff roster', a
   await page.getByRole('button', { name: /新建预约/ }).click();
   await expect(page.locator('#f_staff')).toContainText('历史员工甲');
 });
+
+test('completed appointment creates one linked order for the correct customer', async ({ page }) => {
+  await page.locator('[data-page="appointments"]').filter({ visible: true }).first().click();
+  const row = page.locator('#appointmentRows tr').filter({ hasText: '精油按摩' }).first();
+  await expect(row).not.toContainText('生成订单');
+  await row.getByRole('button', { name: '更新状态' }).click();
+  await expect(row).toContainText('已完成');
+  await row.getByRole('button', { name: '生成订单' }).click();
+  await expect(page.locator('#modalTitle')).toHaveText('根据预约登记订单');
+  await expect(page.locator('#f_customer')).toHaveValue('c1');
+  await expect(page.locator('#f_amount')).toHaveValue('268');
+  await page.locator('#f_paid').fill('200');
+  await page.getByRole('button', { name: '保存记录' }).click();
+  await expect(row).toContainText('已关联订单');
+  const linked = await page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem('shengyi_guanjia_v01'));
+    return state.orders.find(order => order.appointmentId === 'a1');
+  });
+  expect(linked).toBeTruthy();
+  expect(linked.customerId).toBe('c1');
+  expect(linked.amount).toBe(268);
+  expect(linked.paid).toBe(200);
+  await page.evaluate(() => createOrderFromAppointment('a1'));
+  await expect(page.locator('#toast')).toContainText('该预约已经生成订单');
+  const count = await page.evaluate(() => JSON.parse(localStorage.getItem('shengyi_guanjia_v01')).orders.filter(order => order.appointmentId === 'a1').length);
+  expect(count).toBe(1);
+});
