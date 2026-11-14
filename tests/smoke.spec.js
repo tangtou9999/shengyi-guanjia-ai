@@ -106,9 +106,11 @@ test('invalid backup is rejected without replacing current data', async ({ page 
 
 test('PWA manifest and offline service worker are registered', async ({ page }) => {
   await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', './manifest.webmanifest');
-  const manifestResponse = await page.request.get('./manifest.webmanifest');
-  expect(manifestResponse.ok()).toBeTruthy();
-  const manifest = await manifestResponse.json();
+  const manifest = await page.evaluate(async () => {
+    const response = await fetch('./manifest.webmanifest');
+    if (!response.ok) throw new Error('Manifest request failed');
+    return response.json();
+  });
   expect(manifest.name).toBe('生意管家 AI');
   await expect.poll(() => page.evaluate(() => 'serviceWorker' in navigator)).toBeTruthy();
   await page.evaluate(() => navigator.serviceWorker.ready);
