@@ -1,0 +1,21 @@
+{
+  "id": "./",
+  "name": "生意管家 AI",
+  "short_name": "生意管家",
+  "description": "小微商家客户、预约、订单与经营管理助手",
+  "lang": "zh-CN",
+  "start_url": "./?source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5f6f8",
+  "theme_color": "#f6f7f9",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
