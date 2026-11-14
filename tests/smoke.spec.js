@@ -63,3 +63,53 @@ test('expense can be recorded, searched and deleted', async ({ page }) => {
   await page.getByRole('button', { name: '删除' }).click();
   await expect(page.locator('#expenseRows')).toContainText('暂无支出记录');
 });
+
+test('backup can be restored after validation without losing its records', async ({ page }) => {
+  await page.locator('[data-page="settings"]').first().click();
+  const backup = {
+    app: 'shengyi-guanjia-ai',
+    schemaVersion: 1,
+    data: {
+      schemaVersion: 1,
+      currency: 'CNY',
+      storeName: '恢复测试门店',
+      customers: [{ id: 'restore-c1', name: '备份恢复客户', phone: '13800000000', source: '导入', created: '2026-11-15' }],
+      appointments: [],
+      orders: [{ id: 'restore-o1', code: 'RESTORE-001', customerId: 'restore-c1', amount: 520, paid: 520, date: '2026-11-15', status: '已完成' }],
+      expenses: [{ id: 'restore-e1', name: '恢复测试耗材', amount: 20, date: '2026-11-15' }]
+    }
+  };
+  page.once('dialog', dialog => dialog.accept());
+  await page.locator('#backupFile').setInputFiles({
+    name: 'backup.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(backup))
+  });
+  await expect(page.locator('#toast')).toContainText('备份恢复成功');
+  await page.locator('[data-page="customers"]').first().click();
+  await expect(page.locator('#customerRows')).toContainText('备份恢复客户');
+  await page.locator('[data-page="reports"]').first().click();
+  await expect(page.locator('#reportRevenue')).toContainText('520');
+});
+
+test('invalid backup is rejected without replacing current data', async ({ page }) => {
+  await page.locator('[data-page="settings"]').first().click();
+  await page.locator('#backupFile').setInputFiles({
+    name: 'invalid.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({ app: 'shengyi-guanjia-ai', data: { customers: [] } }))
+  });
+  await expect(page.locator('#toast')).toContainText('备份缺少必要数据');
+  await page.locator('[data-page="customers"]').first().click();
+  await expect(page.locator('#customerRows')).toContainText('王女士');
+});
+
+test('PWA manifest and offline service worker are registered', async ({ page }) => {
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', './manifest.webmanifest');
+  const manifestResponse = await page.request.get('./manifest.webmanifest');
+  expect(manifestResponse.ok()).toBeTruthy();
+  const manifest = await manifestResponse.json();
+  expect(manifest.name).toBe('生意管家 AI');
+  await expect.poll(() => page.evaluate(() => 'serviceWorker' in navigator)).toBeTruthy();
+  await page.evaluate(() => navigator.serviceWorker.ready);
+});
