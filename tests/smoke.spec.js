@@ -250,7 +250,7 @@ test('customer tags and last contact date can be edited and searched', async ({ 
   await page.locator('#customerSearch').fill('需要回访');
   await expect(page.locator('#customerRows')).toContainText('王女士');
   await page.locator('#customerRows tr').getByRole('button', { name: '档案' }).click();
-  await expect(page.locator('#customerProfileBody')).toContainText('2026-11-12');
+  await expect(page.locator('#customerProfileBody')).toContainText('11/12');
   await expect(page.locator('#customerProfileBody')).toContainText('偏好提前一天预约');
   await expect(page.locator('#customerProfileBody')).toContainText('高价值');
 });
@@ -272,7 +272,7 @@ test('legacy customer records migrate tags and last contact defaults without dat
   await page.reload();
   await page.locator('[data-page="customers"]').filter({ visible: true }).first().click();
   const row = page.locator('#customerRows tr').filter({ hasText: '老版本客户' });
-  await expect(row).toContainText('2026-10-01');
+  await expect(row).toContainText('10/01');
   await row.getByRole('button', { name: '档案' }).click();
   await expect(page.locator('#customerProfileBody')).toContainText('原有客户备注');
   await expect(page.locator('#customerProfileBody')).toContainText('暂无');
