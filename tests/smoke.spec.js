@@ -65,7 +65,7 @@ test('expense can be recorded, searched and deleted', async ({ page }) => {
 });
 
 test('backup can be restored after validation without losing its records', async ({ page }) => {
-  await page.locator('[data-page="settings"]').first().click();
+  await page.locator('.userpill').click();
   const backup = {
     app: 'shengyi-guanjia-ai',
     schemaVersion: 1,
@@ -93,7 +93,7 @@ test('backup can be restored after validation without losing its records', async
 });
 
 test('invalid backup is rejected without replacing current data', async ({ page }) => {
-  await page.locator('[data-page="settings"]').first().click();
+  await page.locator('.userpill').click();
   await page.locator('#backupFile').setInputFiles({
     name: 'invalid.json',
     mimeType: 'application/json',
