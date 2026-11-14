@@ -160,7 +160,6 @@ test('staff can be added, edited and safely deactivated', async ({ page }) => {
   await page.locator('#f_staffRole').fill('店长');
   await page.getByRole('button', { name: '保存记录' }).click();
   await expect(page.locator('#staffRows')).toContainText('店长');
-  page.once('dialog', dialog => dialog.accept());
   await page.locator('#staffRows tr').filter({ hasText: '自动化员工' }).getByRole('button', { name: '停用' }).click();
   await expect(page.locator('#staffRows tr').filter({ hasText: '自动化员工' })).toContainText('已停用');
 });
