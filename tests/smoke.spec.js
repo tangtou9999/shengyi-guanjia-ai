@@ -484,3 +484,30 @@ test('backup rejects collection ledgers whose total differs from the order paid 
   await page.locator('[data-page="customers"]').filter({ visible: true }).first().click();
   await expect(page.locator('#customerRows')).toContainText('王女士');
 });
+
+test('today collected revenue follows receipt date rather than original order date', async ({ page }) => {
+  const dates = await page.evaluate(() => {
+    const fmt = d => [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+    const today = new Date();
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    return { today: fmt(today), yesterday: fmt(yesterday) };
+  });
+  await page.locator('[data-page="home"]').filter({ visible: true }).first().click();
+  const before = Number((await page.locator('#kpiPaid').textContent()).replace(/[^0-9.]/g, ''));
+  await page.locator('[data-page="orders"]').filter({ visible: true }).first().click();
+  await page.getByRole('button', { name: /新建订单/ }).click();
+  await page.locator('#f_customer').selectOption('c3');
+  await page.locator('#f_amount').fill('500');
+  await page.locator('#f_paid').fill('0');
+  await page.locator('#f_date').fill(dates.yesterday);
+  await page.getByRole('button', { name: '保存记录' }).click();
+  const code = await page.evaluate(() => JSON.parse(localStorage.getItem('shengyi_guanjia_v01')).orders.find(o => o.customerId === 'c3' && o.amount === 500).code);
+  await page.locator('#orderRows tr').filter({ hasText: code }).getByRole('button', { name: '登记收款' }).click();
+  await page.locator('#f_paymentAmount').fill('100');
+  await page.locator('#f_paymentDate').fill(dates.today);
+  await page.locator('#f_paymentMethod').selectOption({ label: '现金' });
+  await page.getByRole('button', { name: '保存记录' }).click();
+  await page.locator('[data-page="home"]').filter({ visible: true }).first().click();
+  const after = Number((await page.locator('#kpiPaid').textContent()).replace(/[^0-9.]/g, ''));
+  expect(after).toBeCloseTo(before + 100, 2);
+});
