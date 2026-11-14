@@ -225,3 +225,79 @@ test('completed appointment creates one linked order for the correct customer', 
   const count = await page.evaluate(() => JSON.parse(localStorage.getItem('shengyi_guanjia_v01')).orders.filter(order => order.appointmentId === 'a1').length);
   expect(count).toBe(1);
 });
+
+test('customer profile shows lifetime metrics, order history and appointment history', async ({ page }) => {
+  await page.locator('[data-page="customers"]').filter({ visible: true }).first().click();
+  const row = page.locator('#customerRows tr').filter({ hasText: '王女士' });
+  await row.getByRole('button', { name: '档案' }).click();
+  await expect(page.locator('#customerProfileTitle')).toHaveText('王女士 · 客户档案');
+  await expect(page.locator('#profileTotal')).toContainText('268');
+  await expect(page.locator('#profileOrders')).toContainText('1 笔');
+  await expect(page.locator('#customerProfileBody')).toContainText('SG20260001');
+  await expect(page.locator('#customerProfileBody')).toContainText('精油按摩');
+  await expect(page.locator('#customerProfileBody')).toContainText('小李');
+});
+
+test('customer tags and last contact date can be edited and searched', async ({ page }) => {
+  await page.locator('[data-page="customers"]').filter({ visible: true }).first().click();
+  const row = page.locator('#customerRows tr').filter({ hasText: '王女士' });
+  await row.getByRole('button', { name: '编辑' }).click();
+  await page.locator('#f_tags').fill('老客户, 高价值, 需要回访');
+  await page.locator('#f_lastContact').fill('2026-11-12');
+  await page.locator('#f_notes').fill('偏好提前一天预约');
+  await page.getByRole('button', { name: '保存记录' }).click();
+  await expect(page.locator('#customerRows')).toContainText('高价值');
+  await page.locator('#customerSearch').fill('需要回访');
+  await expect(page.locator('#customerRows')).toContainText('王女士');
+  await page.locator('#customerRows tr').getByRole('button', { name: '档案' }).click();
+  await expect(page.locator('#customerProfileBody')).toContainText('11/12');
+  await expect(page.locator('#customerProfileBody')).toContainText('偏好提前一天预约');
+  await expect(page.locator('#customerProfileBody')).toContainText('高价值');
+});
+
+test('legacy customer records migrate tags and last contact defaults without data loss', async ({ page }) => {
+  await page.evaluate(() => {
+    localStorage.setItem('shengyi_guanjia_v01', JSON.stringify({
+      schemaVersion: 2,
+      currency: 'CNY',
+      storeName: '旧版客户门店',
+      customers: [{ id: 'legacy-customer-1', name: '老版本客户', phone: '', source: '朋友介绍', created: '2026-10-01', notes: '原有客户备注' }],
+      appointments: [],
+      staff: [],
+      services: [],
+      orders: [],
+      expenses: []
+    }));
+  });
+  await page.reload();
+  await page.locator('[data-page="customers"]').filter({ visible: true }).first().click();
+  const row = page.locator('#customerRows tr').filter({ hasText: '老版本客户' });
+  await expect(row).toContainText('10/01');
+  await row.getByRole('button', { name: '档案' }).click();
+  await expect(page.locator('#customerProfileBody')).toContainText('原有客户备注');
+  await expect(page.locator('#customerProfileBody')).toContainText('暂无');
+  const migrated = await page.evaluate(() => JSON.parse(localStorage.getItem('shengyi_guanjia_v01')).customers[0]);
+  expect(migrated.tags).toEqual([]);
+  expect(migrated.lastContact).toBe('2026-10-01');
+});
+
+test('backup rejects malformed customer tags without changing existing records', async ({ page }) => {
+  await page.locator('.userpill').click();
+  const invalid = {
+    app: 'shengyi-guanjia-ai',
+    data: {
+      customers: [{ id: 'bad-customer', name: '错误标签客户', tags: '不是数组' }],
+      appointments: [],
+      orders: [],
+      expenses: []
+    }
+  };
+  await page.locator('#backupFile').setInputFiles({
+    name: 'bad-customer-tags.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(invalid))
+  });
+  await expect(page.locator('#toast')).toContainText('客户标签数据格式无效');
+  await page.locator('[data-page="customers"]').filter({ visible: true }).first().click();
+  await expect(page.locator('#customerRows')).toContainText('王女士');
+});
