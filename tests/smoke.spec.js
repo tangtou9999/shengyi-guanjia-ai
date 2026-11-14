@@ -399,7 +399,7 @@ test('orders support split payments, payment methods, history and exact receivab
   await expect(row).toContainText('800');
 
   await row.getByRole('button', { name: '登记收款' }).click();
-  await page.locator('#f_paymentAmount').fill('501');
+  await page.locator('#f_paymentAmount').fill('801');
   await page.locator('#f_paymentMethod').selectOption({ label: '支付宝' });
   await page.locator('#f_paymentNote').fill('第二次收款');
   await page.getByRole('button', { name: '保存记录' }).click();
