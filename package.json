@@ -1,0 +1,11 @@
+{
+  "name": "shengyi-guanjia-ai",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  }
+}
