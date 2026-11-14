@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
 
 test('dashboard renders and navigation reaches all core modules', async ({ page }) => {
   await expect(page.locator('#page-home')).toBeVisible();
-  for (const [key, label] of [['customers', '客户中心'], ['appointments', '预约管理'], ['services', '服务项目'], ['orders', '订单管理'], ['expenses', '支出管理'], ['reports', '经营分析']]) {
+  for (const [key, label] of [['customers', '客户中心'], ['appointments', '预约管理'], ['services', '服务项目'], ['staff', '员工管理'], ['orders', '订单管理'], ['expenses', '支出管理'], ['reports', '经营分析']]) {
     await page.locator('[data-page="' + key + '"]').filter({ visible: true }).first().click();
     await expect(page.locator('#pageTitle')).toHaveText(label);
   }
@@ -30,9 +30,11 @@ test('appointment rejects occupied time and accepts a free time', async ({ page 
   await page.getByRole('button', { name: /新建预约/ }).click();
   await page.locator('#f_time').fill('10:00');
   await page.locator('#f_service').selectOption('s1');
+  await page.locator('#f_staff').selectOption('st1');
   await page.getByRole('button', { name: '保存记录' }).click();
-  await expect(page.locator('#toast')).toContainText('该时间已有预约');
+  await expect(page.locator('#toast')).toContainText('该员工在此时段已有预约');
   await page.locator('#f_time').fill('11:00');
+  await page.locator('#f_staff').selectOption('st1');
   await page.getByRole('button', { name: '保存记录' }).click();
   await expect(page.locator('#appointmentRows')).toContainText('精油按摩');
 });
@@ -139,8 +141,39 @@ test('service catalog creates priced services and appointments use catalog prici
   await expect(page.locator('#serviceInfo')).toContainText('45 分钟');
   await page.locator('#f_date').fill(new Date().toISOString().slice(0, 10));
   await page.locator('#f_time').fill('16:00');
-  await page.locator('#f_staff').fill('自动化员工');
+  await page.locator('#f_staff').selectOption('st1');
   await page.getByRole('button', { name: '保存记录' }).click();
   await expect(page.locator('#appointmentRows')).toContainText('深层护理');
   await expect(page.locator('#appointmentRows')).toContainText('45 分钟');
+});
+
+test('staff can be added, edited and safely deactivated', async ({ page }) => {
+  await page.locator('[data-page="staff"]').filter({ visible: true }).first().click();
+  await page.getByRole('button', { name: /新增员工/ }).click();
+  await page.locator('#f_staffName').fill('自动化员工');
+  await page.locator('#f_staffRole').fill('高级技师');
+  await page.locator('#f_staffPhone').fill('13900000000');
+  await page.getByRole('button', { name: '保存记录' }).click();
+  const row = page.locator('#staffRows tr').filter({ hasText: '自动化员工' });
+  await expect(row).toContainText('高级技师');
+  await row.getByRole('button', { name: '编辑' }).click();
+  await page.locator('#f_staffRole').fill('店长');
+  await page.getByRole('button', { name: '保存记录' }).click();
+  await expect(page.locator('#staffRows')).toContainText('店长');
+  page.once('dialog', dialog => dialog.accept());
+  await page.locator('#staffRows tr').filter({ hasText: '自动化员工' }).getByRole('button', { name: '停用' }).click();
+  await expect(page.locator('#staffRows tr').filter({ hasText: '自动化员工' })).toContainText('已停用');
+});
+
+test('same employee cannot have overlapping appointments but another employee can', async ({ page }) => {
+  await page.locator('[data-page="appointments"]').filter({ visible: true }).first().click();
+  await page.getByRole('button', { name: /新建预约/ }).click();
+  await page.locator('#f_time').fill('10:30');
+  await page.locator('#f_service').selectOption('s1');
+  await page.locator('#f_staff').selectOption('st1');
+  await page.getByRole('button', { name: '保存记录' }).click();
+  await expect(page.locator('#toast')).toContainText('该员工在此时段已有预约');
+  await page.locator('#f_staff').selectOption('st2');
+  await page.getByRole('button', { name: '保存记录' }).click();
+  await expect(page.locator('#appointmentRows')).toContainText('小周');
 });
