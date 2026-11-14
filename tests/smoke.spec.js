@@ -301,3 +301,85 @@ test('backup rejects malformed customer tags without changing existing records',
   await page.locator('[data-page="customers"]').filter({ visible: true }).first().click();
   await expect(page.locator('#customerRows')).toContainText('王女士');
 });
+
+test('customer follow-up reminders classify overdue, today and upcoming', async ({ page }) => {
+  const dates = await page.evaluate(() => {
+    const fmt = d => [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+    const d = new Date();
+    const today = fmt(d);
+    const yesterdayDate = new Date(d); yesterdayDate.setDate(d.getDate() - 1);
+    const tomorrowDate = new Date(d); tomorrowDate.setDate(d.getDate() + 1);
+    return { yesterday: fmt(yesterdayDate), today, tomorrow: fmt(tomorrowDate) };
+  });
+  await page.locator('[data-page="customers"]').filter({ visible: true }).first().click();
+  const customers = [
+    ['王女士', dates.yesterday, '逾期回访测试'],
+    ['陈先生', dates.today, '今日回访测试'],
+    ['林小姐', dates.tomorrow, '即将回访测试']
+  ];
+  for (const [name, due, note] of customers) {
+    const row = page.locator('#customerRows tr').filter({ hasText: name });
+    await row.getByRole('button', { name: '编辑' }).click();
+    await page.locator('#f_nextFollowUp').fill(due);
+    await page.locator('#f_followUpNote').fill(note);
+    await page.getByRole('button', { name: '保存记录' }).click();
+  }
+  await page.locator('[data-page="followups"]').filter({ visible: true }).first().click();
+  await expect(page.locator('#followupOverdue')).toHaveText('1');
+  await expect(page.locator('#followupToday')).toHaveText('1');
+  await expect(page.locator('#followupUpcoming')).toHaveText('1');
+  await page.locator('#followupFilter').selectOption('overdue');
+  await expect(page.locator('#followupRows')).toContainText('王女士');
+  await expect(page.locator('#followupRows')).not.toContainText('陈先生');
+});
+
+test('completing a follow-up updates last contact and preserves follow-up history', async ({ page }) => {
+  const dates = await page.evaluate(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+  });
+  const today = await page.evaluate(() => {
+    const d = new Date();
+    return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+  });
+  await page.locator('[data-page="customers"]').filter({ visible: true }).first().click();
+  const row = page.locator('#customerRows tr').filter({ hasText: '王女士' });
+  await row.getByRole('button', { name: '编辑' }).click();
+  await page.locator('#f_nextFollowUp').fill(dates);
+  await page.locator('#f_followUpNote').fill('确认护理体验并邀请复购');
+  await page.getByRole('button', { name: '保存记录' }).click();
+  await page.locator('[data-page="followups"]').filter({ visible: true }).first().click();
+  const followRow = page.locator('#followupRows tr').filter({ hasText: '王女士' });
+  await followRow.getByRole('button', { name: '完成回访' }).click();
+  await expect(page.locator('#followupRows')).not.toContainText('王女士');
+  const customer = await page.evaluate(() => JSON.parse(localStorage.getItem('shengyi_guanjia_v01')).customers.find(c => c.id === 'c1'));
+  expect(customer.lastContact).toBe(today);
+  expect(customer.nextFollowUp).toBe('');
+  expect(customer.lastFollowUpNote).toBe('确认护理体验并邀请复购');
+  expect(customer.followUpHistory).toHaveLength(1);
+  await page.locator('[data-page="customers"]').filter({ visible: true }).first().click();
+  await page.locator('#customerRows tr').filter({ hasText: '王女士' }).getByRole('button', { name: '档案' }).click();
+  await expect(page.locator('#customerProfileBody')).toContainText('确认护理体验并邀请复购');
+});
+
+test('backup rejects invalid follow-up dates without replacing current data', async ({ page }) => {
+  await page.locator('.userpill').click();
+  const invalid = {
+    app: 'shengyi-guanjia-ai',
+    data: {
+      customers: [{ id: 'bad-followup-customer', name: '错误回访客户', nextFollowUp: '下周某天' }],
+      appointments: [],
+      orders: [],
+      expenses: []
+    }
+  };
+  await page.locator('#backupFile').setInputFiles({
+    name: 'bad-follow-up.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(invalid))
+  });
+  await expect(page.locator('#toast')).toContainText('下次回访日期格式无效');
+  await page.locator('[data-page="customers"]').filter({ visible: true }).first().click();
+  await expect(page.locator('#customerRows')).toContainText('王女士');
+});
