@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
 
 test('dashboard renders and navigation reaches all core modules', async ({ page }) => {
   await expect(page.locator('#page-home')).toBeVisible();
-  for (const [key, label] of [['customers', '客户中心'], ['appointments', '预约管理'], ['orders', '订单管理'], ['expenses', '支出管理'], ['reports', '经营分析']]) {
+  for (const [key, label] of [['customers', '客户中心'], ['appointments', '预约管理'], ['services', '服务项目'], ['orders', '订单管理'], ['expenses', '支出管理'], ['reports', '经营分析']]) {
     await page.locator('[data-page="' + key + '"]').filter({ visible: true }).first().click();
     await expect(page.locator('#pageTitle')).toHaveText(label);
   }
@@ -126,6 +126,11 @@ test('service catalog creates priced services and appointments use catalog prici
   await page.getByRole('button', { name: '保存记录' }).click();
   await expect(page.locator('#serviceRows')).toContainText('深层护理');
   await expect(page.locator('#serviceRows')).toContainText('199');
+  const serviceRow = page.locator('#serviceRows tr').filter({ hasText: '深层护理' });
+  await serviceRow.getByRole('button', { name: '编辑' }).click();
+  await page.locator('#f_servicePrice').fill('219');
+  await page.getByRole('button', { name: '保存记录' }).click();
+  await expect(page.locator('#serviceRows')).toContainText('219');
   await page.locator('[data-page="appointments"]').filter({ visible: true }).first().click();
   await page.getByRole('button', { name: /新建预约/ }).click();
   const serviceId = await page.locator('#f_service option').filter({ hasText: '深层护理' }).getAttribute('value');
