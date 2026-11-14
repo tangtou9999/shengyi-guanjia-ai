@@ -176,3 +176,25 @@ test('same employee cannot have overlapping appointments but another employee ca
   await page.getByRole('button', { name: '保存记录' }).click();
   await expect(page.locator('#appointmentRows')).toContainText('小周');
 });
+
+test('older local data migrates historical staff names into the staff roster', async ({ page }) => {
+  await page.evaluate(() => {
+    const today = new Date();
+    const date = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, '0'), String(today.getDate()).padStart(2, '0')].join('-');
+    localStorage.setItem('shengyi_guanjia_v01', JSON.stringify({
+      currency: 'CNY',
+      storeName: '旧版门店',
+      customers: [{ id: 'old-c1', name: '旧版客户', phone: '', source: '导入', created: date, notes: '' }],
+      appointments: [{ id: 'old-a1', date, time: '09:00', customerId: 'old-c1', service: '旧版护理', staff: '历史员工甲', status: '已确认' }],
+      services: [],
+      orders: [],
+      expenses: []
+    }));
+  });
+  await page.reload();
+  await page.locator('[data-page="staff"]').filter({ visible: true }).first().click();
+  await expect(page.locator('#staffRows')).toContainText('历史员工甲');
+  await page.locator('[data-page="appointments"]').filter({ visible: true }).first().click();
+  await page.getByRole('button', { name: /新建预约/ }).click();
+  await expect(page.locator('#f_staff')).toContainText('历史员工甲');
+});
